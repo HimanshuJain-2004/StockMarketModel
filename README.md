@@ -24,7 +24,7 @@ Each dataset contains OHLCV (Open, High, Low, Close, Volume) data plus adjusted 
 
 ## 🏗️ Architecture
 
-### Data Processing Pipeline
+### Data Pre-Processing Pipeline
 
 1. **Raw Data Loading**: OHLCV stock price data
 2. **Genetic Algorithm Optimization**: Optimizes VMD parameters (K, α) for each stock
