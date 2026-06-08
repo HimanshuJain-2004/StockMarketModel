@@ -1,6 +1,5 @@
 import numpy
 import numpy as np
-# import matplotlib.pyplot as plt
 from vmdpy import VMD
 import pandas as pd
 datasets = 'DJIA'
@@ -25,8 +24,6 @@ for j in range(tdata.shape[0]):
     train_data = data[0:train_size]
     test_data = data[train_size:row]
     u2 = []
-    # train_data = np.reshape(train_data, [train_data.shape[1], train_data.shape[0]])
-    # test_data = np.reshape(test_data, [test_data.shape[1], test_data.shape[0]])
     for i in range(data.shape[1]):
         u, u_hat, omega = VMD(train_data[:, i], alpha, tau, K, DC, init, tol)
         u1, u_hat1, omega1 = VMD(test_data[:, i], alpha, tau, K, DC, init, tol)
@@ -36,7 +33,6 @@ for j in range(tdata.shape[0]):
 
     u2 = np.array(list(map(list, zip(*u2))))
     data = data.astype(float)
-    # res = data - np.sum(u2, axis=2)
     print(train_data.shape, np.array(u).shape)
     print(test_data.shape, np.array(u1).shape)
     print(data.shape, u2.shape)

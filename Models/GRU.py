@@ -15,7 +15,6 @@ from utils import get_trend, avg_relative_error
 from input_data import data_y
 import matplotlib.pyplot as plt
 
-# ================= CONFIG =================
 config = ConfigParser()
 config.read("config.ini")
 
@@ -33,7 +32,6 @@ start_index = int(config["hyper"]["start_index"])
 r_mse = float(config["hyper"]["r_mse"])
 r_acc = float(config["hyper"]["r_acc"])
 
-# ================= LOAD DATA =================
 data = np.load(data_addr, allow_pickle=True)
 
 ALL_Y_TEST = []
@@ -44,7 +42,6 @@ TOTAL_TRAIN_TIME = 0.0
 TOTAL_TEST_TIME = 0.0
 save_dir = "/kaggle/working/result"
 os.makedirs(save_dir, exist_ok=True)
-# ========== KAGGLE OUTPUT PATH ==========
 RESULT_DIR = f"/kaggle/working/results_{datasets}"
 os.makedirs(RESULT_DIR, exist_ok=True)
 
@@ -67,7 +64,6 @@ if not os.path.exists(RESULT_CSV):
             "r_acc"
         ])
 
-# ================= SEQUENCE BUILDER =================
 def make_sequences(series, seq_len):
     X, y = [], []
     for i in range(len(series) - seq_len):
@@ -75,7 +71,6 @@ def make_sequences(series, seq_len):
         y.append(series[i + seq_len])
     return np.array(X), np.array(y)
 
-# ================= GRU MODEL =================
 def trainmodel_gru(stock_data):
     prices = stock_data[:, 3].astype(float)
 
@@ -100,7 +95,6 @@ def trainmodel_gru(stock_data):
         loss="mse"
     )
 
-    # -------- TRAIN --------
     start_train = time.time()
     model.fit(
         X_train,
@@ -111,14 +105,12 @@ def trainmodel_gru(stock_data):
     )
     train_time = time.time() - start_train
 
-    # -------- TEST --------
     start_test = time.time()
     preds = model.predict(X_test, verbose=0).reshape(-1)
     test_time = time.time() - start_test
 
     return preds, train_time, test_time
 
-# ================= MAIN (REGCN STYLE) =================
 def main(data, s_index):
     tdata = data[s_index].astype(float)
     labels = tdata[:, 3]
@@ -136,16 +128,13 @@ def main(data, s_index):
     )
     y_test = y_test[:, -1]
 
-    # -------- TRAIN MODEL --------
     preds, train_time, test_time = trainmodel_gru(tdata)
 
-    # -------- ALIGN LENGTHS --------
     min_len = min(len(pre_y_test), len(y_test), len(preds))
     pre_y = pre_y_test[:min_len]
     y_true = y_test[:min_len]
     y_pred = preds[:min_len]
 
-    # -------- COLLECT FOR AGGREGATION --------
     ALL_Y_TEST.append(y_true.flatten())
     ALL_Y_PRED.append(y_pred.flatten())
 
@@ -159,7 +148,6 @@ def main(data, s_index):
     ALL_TREND_TRUE.append(actual_trend)
     ALL_TREND_PRED.append(predicted_trend)
 
-    # -------- METRICS --------
     accuracy = accuracy_score(actual_trend, predicted_trend)
     r2 = r2_score(y_true, y_pred)
     rmse = sqrt(mean_squared_error(y_true, y_pred))
@@ -175,11 +163,7 @@ def main(data, s_index):
     print("rmse:", rmse)
     print("mae:", mae)
     print("re:", re)
-    print("test_time: ", test_time)
-    print("train_time: ", train_time)
-    print("***********************")
-
-    # -------- SAVE --------
+    ##
     with open(RESULT_CSV, "a", newline="", encoding="UTF8") as f:
         writer = csv.writer(f)
         writer.writerow([
@@ -196,14 +180,12 @@ def main(data, s_index):
             r_acc
         ])
 
-# ================= RUN =================
 if __name__ == "__main__":
 
     if all_data == 1:
         for s_index in range(start_index, data.shape[0]):
             main(data, s_index)
 
-        # -------- FINAL AGGREGATED METRICS --------
         ALL_Y_TEST_FLAT = np.concatenate(ALL_Y_TEST)
         ALL_Y_PRED_FLAT = np.concatenate(ALL_Y_PRED)
         ALL_TREND_TRUE_FLAT = np.concatenate(ALL_TREND_TRUE)
@@ -226,7 +208,6 @@ if __name__ == "__main__":
         print("Aggregated MAE       :", agg_mae)
         print("Aggregated Trend Acc :", agg_trend_acc)
         print("==============================\n")
-        # ---- SAVE AGGREGATED METRICS TO CSV ----
         agg_write_data = [
             "GRU_AGGREGATED",
             "ALL_STOCKS",
@@ -235,8 +216,8 @@ if __name__ == "__main__":
             str(agg_rmse),
             str(agg_mae),
             "-",
-            f"{TOTAL_TRAIN_TIME:.4f}",        # TOTAL train time
-            f"{TOTAL_TEST_TIME:.4f}",           # Test time
+            f"{TOTAL_TRAIN_TIME:.4f}",      
+            f"{TOTAL_TEST_TIME:.4f}",           
             str(r_mse),
             str(r_acc)
         ]
@@ -245,8 +226,7 @@ if __name__ == "__main__":
             writer.writerow(agg_write_data)
 
         print("✔ Aggregated metrics saved to:", RESULT_CSV)
-        print(f"✔ Total Train Time: {TOTAL_TRAIN_TIME:.4f} sec")
-        print(f"✔ Total Test Time : {TOTAL_TEST_TIME:.4f} sec\n")
+        ##
 
     else:
         main(data, start_index)

@@ -60,13 +60,11 @@ TOTAL_TEST_TIME = 0.0
 
 save_dir = "/kaggle/working/result"
 os.makedirs(save_dir, exist_ok=True)
-# ---------- KAGGLE OUTPUT PATH ----------
 RESULT_DIR = f"/kaggle/working/results_{datasets}"
 os.makedirs(RESULT_DIR, exist_ok=True)
 
 RESULT_CSV = os.path.join(RESULT_DIR, "result_PROPOSED.csv")
 
-# Write CSV header only once
 if not os.path.exists(RESULT_CSV):
     with open(RESULT_CSV, 'w', newline='', encoding='UTF8') as f:
         writer = csv.writer(f)
@@ -90,26 +88,20 @@ def trend_margin_loss(y_true, y_pred, prev_price, margin):
     return tf.reduce_mean(tf.maximum(0.0, margin - true_diff * pred_diff))
 
 def get_trend_margin(pre, cur, eps):
-    """
-    Margin-based trend extraction
-    pre : previous price (t-1)
-    cur : current price (t)
-    eps : margin threshold
-    """
+
     pre = pre.flatten()
     cur = cur.flatten()
 
     diff = cur - pre
 
     trend = np.zeros_like(diff, dtype=int)
-    trend[diff > eps] = 1        # significant upward
-    trend[diff < -eps] = 0       # significant downward
+    trend[diff > eps] = 1       
+    trend[diff < -eps] = 0       
 
     return trend
 
 
 def regcn_loss(y_true, y_pred, prev_price):
-    # FORCE dtype consistency (CRITICAL FIX)
     y_true = tf.cast(y_true, tf.float32)
     y_pred = tf.cast(y_pred, tf.float32)
     prev_price = tf.cast(prev_price, tf.float32)
@@ -118,8 +110,6 @@ def regcn_loss(y_true, y_pred, prev_price):
     y_pred_last = y_pred[:, -1, :]
 
     mse = tf.reduce_mean(tf.square(y_true_last - y_pred_last))
-    # true_diff = y_true_last - prev_price
-    # margin = 0.1 * tf.math.reduce_mean(tf.abs(true_diff))
 
     trend_loss = tf.reduce_mean(
         tf.cast(
@@ -148,7 +138,6 @@ def trainmodel(tdata, Madj_cached, s_index, lr, n_neurons,
          seq_len, n_epochs,j):
 
     data = tdata.astype(float)
-    # adj = tadj.astype(float)
     labels = data[:, 3]
     train_rate = 0.8
     pre_len = 1
@@ -158,13 +147,10 @@ def trainmodel(tdata, Madj_cached, s_index, lr, n_neurons,
     X_train, y_train, X_test, y_test, pre_y_test = preprocess_data(
         data, labels, time_len, train_rate, seq_len, pre_len)
     y_train = np.expand_dims(y_train, -1)
-    pre_y_train = X_train[:, -1, 3:4]  # true previous close price
+    pre_y_train = X_train[:, -1, 3:4]  
 
-    # -------- adjacency (RAW, not normalized) --------
     Madj = Madj_cached
 
-
-    # -------- model --------
     cell = gcgru(n_neurons, Madj, n_gcn_nodes, 3)
     rnn_layer = RNN(cell, return_sequences=True)
 
@@ -172,7 +158,6 @@ def trainmodel(tdata, Madj_cached, s_index, lr, n_neurons,
         rnn_layer,
         TimeDistributed(Dense(1))
     ])
-    # optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
     optimizer = tf.keras.optimizers.Adam(
         learning_rate=lr,
         clipnorm=5.0
@@ -187,13 +172,10 @@ def trainmodel(tdata, Madj_cached, s_index, lr, n_neurons,
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
         return loss
     for epoch in range(n_epochs):
-        # print(f"Epoch {epoch+1}/{n_epochs}")
         
         for i in range(0, X_train.shape[0], batch_size):
             xb = X_train[i:i + batch_size]
             yb = y_train[i:i + batch_size]
-
-            # last observed close price (x_{t-1})
             prev_price = xb[:, -1, 3:4]
             train_step(xb, yb, prev_price)
 
@@ -204,29 +186,24 @@ def trainmodel(tdata, Madj_cached, s_index, lr, n_neurons,
     return result
 
 def main(data, s_index, lr, n_neurons, seq_len, n_epochs):
-    # hyperperameter
     adj_addr1 = adj_addr + datasets + '/' + datasets + '_VMD_'+str(s_index)+ adj2_addr
     adj = np.load(adj_addr1, allow_pickle=True)
-    # ======================================================
-    # CACHE LAPLACIANS ONCE PER STOCK (CRITICAL OPTIMIZATION)
-    # ======================================================
     Madj_cached = []
 
-    for k in range(adj.shape[1]):  # number of graphs (usually 3)
+    for k in range(adj.shape[1]):  
         Lk = tf.sparse.to_dense(
             calculate_laplacian(adj[0][k])
         )
         Madj_cached.append(Lk)
 
-    Madj_cached = tf.stack(Madj_cached, axis=0)  # (K, N, N)
+    Madj_cached = tf.stack(Madj_cached, axis=0)  
 
     tdata = data[s_index]
     tdata = tdata.astype(float)
     labels = tdata[:, 3]
     train_rate = 0.8
     pre_len = 1
-    time_len = tdata.shape[0]-1
-    # print(time_len)
+    time_len = tdata.shape[0]
     y_test, pre_y_test = data_y(labels, time_len, train_rate, seq_len, pre_len)
     y_test = np.expand_dims(y_test, -1)
     file = glob.glob(os.path.join("%s%s/%s_*.csv" % (VMD_addr, datasets, s_index)))
@@ -240,7 +217,7 @@ def main(data, s_index, lr, n_neurons, seq_len, n_epochs):
         mdata = ndata[0:time_len]
         result1 = trainmodel(
             mdata,
-            Madj_cached,     # ✅ cached Laplacians
+            Madj_cached,    
             s_index, lr, n_neurons,
             seq_len, n_epochs, j
         )
@@ -253,27 +230,20 @@ def main(data, s_index, lr, n_neurons, seq_len, n_epochs):
     test_start_time = time.time()
 
     result = np.sum(result, axis=0)
-    # result = np.stack(result, axis=0)   # (K, T, seq, 1)
-    # result = np.sum(result, axis=0)     # (T, seq, 1)
 
     print(result.shape)
     result = result[:, -1]
 
     y_test = y_test[:, -1]
 
-    # -------- ALIGN LENGTHS (CRITICAL FOR AGGREGATION) --------
     min_len = min(len(pre_y_test), len(y_test), len(result))
     pre_y_test_aligned = pre_y_test[:min_len]
     y_test_aligned = y_test[:min_len]
     result_aligned = result[:min_len]
-    # -------- COLLECT FOR FINAL AGGREGATED METRICS --------
     ALL_Y_TEST.append(y_test_aligned.flatten())
     ALL_Y_PRED.append(result_aligned.flatten())
 
-    # actual_trend = get_trend(pre_y_test_aligned, y_test_aligned)
-    # predicted_trend = get_trend(pre_y_test_aligned, result_aligned)
     delta_true = y_test_aligned - pre_y_test_aligned
-    # eps = 0.1 * np.std(y_test_aligned - pre_y_test_aligned)
     eps = 0.1 * np.mean(np.abs(delta_true))
 
     actual_trend = get_trend_margin(
@@ -296,7 +266,6 @@ def main(data, s_index, lr, n_neurons, seq_len, n_epochs):
     print("***********************")
     print(j)
     print("accuracy: ", accuracy)
-    # print("accuracy: ", accuracy1)
     r2 = r2_score(y_test_aligned, result_aligned)
     print("r2: ", r2)
     rmse = sqrt(mean_squared_error(y_test_aligned, result_aligned))
@@ -307,13 +276,9 @@ def main(data, s_index, lr, n_neurons, seq_len, n_epochs):
     print("re: ", re)
     test_end_time = time.time()
     test_time = test_end_time - test_start_time
-    # accumulate global train/test time
     global TOTAL_TRAIN_TIME, TOTAL_TEST_TIME
     TOTAL_TRAIN_TIME += train_time
     TOTAL_TEST_TIME += test_time
-    print("test_time: ", test_time)
-    print("train_time: ", train_time)
-    print("***********************")
 
     write_data = [
         "Proposed_"+str(seq_len),
@@ -335,28 +300,22 @@ def main(data, s_index, lr, n_neurons, seq_len, n_epochs):
     
     if all_data != 1:
         plt.figure(figsize=(14, 7))
-        # ---------- X-axis directly in days since dataset is daily ----------
-        days_axis = np.arange(len(y_test))  # Day 0, Day 1, ..., Day N
-        # ---------- Plot True vs Predicted ----------
+        days_axis = np.arange(len(y_test)) 
         plt.plot(days_axis, y_test, color='red', linewidth=2.5, label='Real Stock Price')
         plt.plot(days_axis, result, color='blue', linewidth=2.5, label='Predicted Stock Price')
-        # ---------- Mark Train/Test Split ----------
         train_len = int(0.8 * len(days_axis))
         plt.axvline(train_len,
                     color='green', linestyle='--', linewidth=1.5,
                     label='Train/Test Split')
-        # Shade the test period region
         plt.axvspan(train_len,
                     days_axis[-1],
                     color='gray', alpha=0.15,
                     label='Test Period')
-        # ---------- Plot Titles & Labels ----------
         plt.title(f'Stock Price Prediction (Stock {s_index+1})',
                 fontsize=20, fontweight='bold')
         plt.xlabel('Number of Days', fontsize=16)
         plt.ylabel('Stock Price($)', fontsize=16)
         plt.grid(True, linestyle='--', alpha=0.5)
-        # ---------- Add performance metrics in a text box ----------
         textstr = (
             f'RMSE: {rmse:.4f}\n'
             f'MAE:  {mae:.4f}\n'
@@ -371,7 +330,6 @@ def main(data, s_index, lr, n_neurons, seq_len, n_epochs):
             bbox=dict(boxstyle="round,pad=0.5", fc="white", ec="black", alpha=0.7)
         )
         plt.legend(fontsize=14)
-        # ---------- Save graph ----------
         save_path = f"{save_dir}/REGCN_{datasets}-{s_index}.png"
         plt.savefig(save_path, dpi=500, bbox_inches='tight')
         plt.show()
@@ -379,10 +337,9 @@ def main(data, s_index, lr, n_neurons, seq_len, n_epochs):
 
 if __name__ == '__main__':
     if all_data == 1:
-        # Step B: extract best hyperparameters
         for s_index in range(start_index, data.shape[0]):
-            # if s_index >=24:
-            #     continue
+            if s_index >=24:
+                continue
             main(
                 data,
                 s_index,
@@ -391,7 +348,6 @@ if __name__ == '__main__':
                 seq_len,
                 n_epochs
             )
-        # ---- FINAL AGGREGATED METRICS (PAPER SETTING) ----
         ALL_Y_TEST_FLAT = np.concatenate(ALL_Y_TEST)
         ALL_Y_PRED_FLAT = np.concatenate(ALL_Y_PRED)
         ALL_TREND_TRUE_FLAT = np.concatenate(ALL_TREND_TRUE)
@@ -424,7 +380,6 @@ if __name__ == '__main__':
         print("Aggregated MAE       :", agg_mae)
         print("Aggregated Trend Acc :", agg_trend_acc)
         print("==============================\n")
-        # ---- SAVE AGGREGATED METRICS TO CSV ----
         agg_write_data = [
             "PROPOSED_AGGREGATED",
             "ALL_STOCKS",
@@ -433,8 +388,8 @@ if __name__ == '__main__':
             str(agg_rmse),
             str(agg_mae),
             "-",
-            f"{TOTAL_TRAIN_TIME:.4f}",        # TOTAL train time
-            f"{TOTAL_TEST_TIME:.4f}",           # Test time
+            f"{TOTAL_TRAIN_TIME:.4f}",    
+            f"{TOTAL_TEST_TIME:.4f}",           
             str(r_mse),
             str(r_acc)
         ]
@@ -443,8 +398,7 @@ if __name__ == '__main__':
             writer.writerow(agg_write_data)
 
         print("✔ Aggregated metrics saved to:", RESULT_CSV)
-        print(f"✔ Total Train Time: {TOTAL_TRAIN_TIME:.4f} sec")
-        print(f"✔ Total Test Time : {TOTAL_TEST_TIME:.4f} sec\n")
+        ##
 
     else:
         for s_index in range(start_index, data.shape[0]):

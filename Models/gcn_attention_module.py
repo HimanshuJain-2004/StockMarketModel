@@ -24,10 +24,6 @@ class GCNTemporalAttention(tf.keras.Model):
         self.s_index = s_index
         self.num_heads = num_heads
         self.dropout_rate = dropout
-
-        # =====================================================
-        # 1️⃣ REGCN-STYLE LEARNABLE MULTI-GRAPH FUSION
-        # =====================================================
         self.wa = self.add_weight(
             shape=(self.K,),
             initializer='random_normal',
@@ -35,11 +31,6 @@ class GCNTemporalAttention(tf.keras.Model):
             constraint=MinMaxNorm(0.0, 1.0),
             name="wa"
         )
-
-        # =====================================================
-        # 2️⃣ REGCN GRAPH CONVOLUTION WEIGHT
-        #    H = σ(Â X W_gcn)
-        # =====================================================
         self.w_gcn = self.add_weight(
             shape=(self.n_nodes, self.hidden_dim),
             initializer='glorot_uniform',
@@ -47,25 +38,18 @@ class GCNTemporalAttention(tf.keras.Model):
             name="w_gcn"
         )
 
-        # =====================================================
-        # 3️⃣ TEMPORAL SELF-ATTENTION (REPLACES GRU)
-        # =====================================================
         self.temporal_attn = TemporalAttentionBlock(
             d_model=self.hidden_dim,
             num_heads=num_heads,
             dropout=dropout
         )
 
-        # =====================================================
-        # 4️⃣ OUTPUT HEAD (SEQ-TO-SEQ FOR REGCN LOSS)
-        # =====================================================
         self.out_dense = Dense(1)
         
     def get_config(self):
         import numpy as np
         config = super().get_config()
 
-        # Safe conversion for both tf.Tensor and numpy arrays
         if isinstance(self.Madj, tf.Tensor):
             Madj_list = self.Madj.numpy().tolist()
         else:
@@ -93,26 +77,17 @@ class GCNTemporalAttention(tf.keras.Model):
         x: (B, T, N)
         returns: (B, T, 1)
         """
-
-        # ===== 1. REGCN multi-graph fusion =====
         A = tf.reduce_sum(
             self.wa[:, None, None] * self.Madj,
             axis=0
         )  # (N, N)
 
-        # ===== 2. Graph aggregation =====
-        # (B, T, N) × (N, N) → (B, T, N)
         Ax = tf.linalg.matmul(x, A)
-
-        # ===== 3. REGCN node-collapsing GCN =====
-        # (B, T, N) × (N, D) → (B, T, D)
         H = tf.tensordot(Ax, self.w_gcn, axes=[[2], [0]])
         H = tf.nn.relu(H)
 
-        # ===== 4. Temporal modeling (attention instead of GRU) =====
         H_attn = self.temporal_attn(H, training=training)
 
-        # ===== 5. Seq-to-seq output =====
-        y_pred = self.out_dense(H_attn)   # (B, T, 1)
+        y_pred = self.out_dense(H_attn)  
 
         return y_pred

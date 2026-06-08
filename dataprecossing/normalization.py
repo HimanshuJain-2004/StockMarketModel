@@ -13,8 +13,6 @@ for file_name in os.listdir(input_folder):
         continue
     print(f"Processing {file_name}...")
     file_path = os.path.join(input_folder, file_name)
-
-    # ✅ force float at read time
     data = pd.read_csv(file_path, header=None).values.astype(np.float64)
 
     min_vals = data.min(axis=0)

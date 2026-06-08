@@ -1,5 +1,3 @@
-# ceemdan_model.py
-
 import numpy as np
 import tensorflow as tf
 from PyEMD import CEEMDAN
@@ -10,9 +8,6 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 
 
-# ---------------------------------------------------
-# LSTM used for NON-stationary CEEMDAN components
-# ---------------------------------------------------
 def build_lstm(seq_len, lr):
     model = Sequential([
         LSTM(128, return_sequences=True,
@@ -28,9 +23,6 @@ def build_lstm(seq_len, lr):
     return model
 
 
-# ---------------------------------------------------
-# ARMA used for stationary CEEMDAN components
-# ---------------------------------------------------
 def arma_predict(train_series, test_len):
     best_aic = np.inf
     best_order = None
@@ -51,14 +43,11 @@ def arma_predict(train_series, test_len):
     return model.forecast(test_len)
 
 
-# ---------------------------------------------------
-# DROP-IN REPLACEMENT FOR trainmodel()
-# ---------------------------------------------------
 def trainmodel_ceemdan(
-        tdata,        # shape: (T, F)
-        s_index,      # unused, kept for signature compatibility
+        tdata,        
+        s_index,      
         lr,
-        n_neurons,    # unused (kept for compatibility)
+        n_neurons,    
         seq_len,
         n_epochs,
         batch_size
@@ -68,35 +57,23 @@ def trainmodel_ceemdan(
         result: shape (N_test, 1)  ← EXACTLY like REGCN
     """
 
-    # -------------------------------
-    # USE SAME TARGET AS REGCN
-    # -------------------------------
     close_price = tdata[:, 3].astype(float)
 
     train_size = int(len(close_price) * 0.8)
     train_series = close_price[:train_size]
     test_series  = close_price[train_size:]
 
-    # -------------------------------
-    # CEEMDAN DECOMPOSITION
-    # -------------------------------
     ceemdan = CEEMDAN()
     imfs = ceemdan.ceemdan(close_price)
 
     final_prediction = np.zeros(len(test_series) - seq_len)
 
-    # -------------------------------
-    # PROCESS EACH COMPONENT
-    # -------------------------------
     for imf in imfs:
-
-        # ADF TEST
         try:
             p_value = adfuller(imf)[1]
         except:
             p_value = 1.0
 
-        # ========== ARMA ==========
         if p_value < 0.05:
             arma_preds = arma_predict(
                 imf[:train_size],
@@ -104,7 +81,6 @@ def trainmodel_ceemdan(
             )
             final_prediction += arma_preds[seq_len:]
 
-        # ========== LSTM ==========
         else:
             scaler = MinMaxScaler()
             imf_scaled = scaler.fit_transform(
@@ -141,12 +117,7 @@ def trainmodel_ceemdan(
                 preds.reshape(-1, 1)
             ).flatten()
 
-            # final_prediction += preds
-            # Align prediction lengths before summation
             min_len = min(len(final_prediction), len(preds))
             final_prediction[:min_len] += preds[:min_len]
 
-    # -------------------------------
-    # RETURN SHAPE MUST MATCH REGCN
-    # -------------------------------
     return final_prediction.reshape(-1, 1)

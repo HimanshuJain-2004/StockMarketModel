@@ -27,8 +27,8 @@ def preprocess_data(data, labels, time_len, rate, seq_len, pre_len):
     for i in range(len(train_data) - seq_len - pre_len + 1):
         a = train_data[i: i + seq_len + pre_len]
         b = train_label[i: i + seq_len + pre_len]
-        trainX.append(a[0: seq_len])  # seq_len 12
-        trainY.append(b[pre_len: seq_len + pre_len])  # pre_len 1
+        trainX.append(a[0: seq_len]) 
+        trainY.append(b[pre_len: seq_len + pre_len])  
     for i in range(len(test_data) - seq_len - pre_len + 1):
         a = test_data[i: i + seq_len + pre_len]
         b = test_label[i: i + seq_len + pre_len]

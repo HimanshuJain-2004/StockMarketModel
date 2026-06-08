@@ -4,12 +4,11 @@ from tensorflow.keras.layers import Layer
 from utils import calculate_laplacian
 from tensorflow.keras import backend as K
 from tensorflow.keras.activations import sigmoid, tanh
-# from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, GRUCell, CuDNNLSTM, BatchNormalization, RNN, TimeDistributed
 from tensorflow.keras.constraints import MinMaxNorm, UnitNorm
 
 class gcgru(Layer):
 
-    # def __init__(self, num_units, adj1,adj2, num_gcn_nodes, s_index, **kwargs):
+    
     def __init__(self, num_units, adj, num_gcn_nodes, s_index,n_graphs=3, **kwargs):
         super(gcgru, self).__init__(**kwargs)
         self.units = num_units
@@ -41,7 +40,6 @@ class gcgru(Layer):
 
     @classmethod
     def from_config(cls, config):
-        # adj was saved as list → convert back to np.array
         import numpy as np
         config["adj"] = np.array(config["adj"], dtype=np.float32)
         return cls(**config)

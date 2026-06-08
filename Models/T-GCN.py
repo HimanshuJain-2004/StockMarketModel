@@ -15,7 +15,6 @@ from utils import get_trend, avg_relative_error, calculate_laplacian
 from input_data import data_y
 import matplotlib.pyplot as plt
 
-# ================= CONFIG =================
 config = ConfigParser()
 config.read("config.ini")
 
@@ -34,15 +33,12 @@ start_index = int(config["hyper"]["start_index"])
 r_mse = float(config["hyper"]["r_mse"])
 r_acc = float(config["hyper"]["r_acc"])
 
-# ================= LOAD DATA =================
-data = np.load(data_addr, allow_pickle=True)      # (N, T, F)
+data = np.load(data_addr, allow_pickle=True)      
 N_NODES = data.shape[0]
 
-# ================= LOAD ADJ (REGCN CONSISTENT) =================
 adj_path = adj_addr + datasets + "/" + datasets + "_VMD_0.npy"
 adj_all = np.load(adj_path, allow_pickle=True)
 
-# Pearson adjacency only (same as REGCN baseline)
 if adj_all.ndim == 3:
     adj = adj_all[0]
 elif adj_all.ndim == 4:
@@ -54,7 +50,6 @@ adj = calculate_laplacian(adj)
 adj = tf.sparse.to_dense(adj)
 adj = tf.where(tf.math.is_finite(adj), adj, tf.zeros_like(adj))
 
-# ================= METRIC STORAGE =================
 ALL_Y_TEST = []
 ALL_Y_PRED = []
 ALL_TREND_TRUE = []
@@ -63,7 +58,6 @@ TOTAL_TRAIN_TIME = 0.0
 TOTAL_TEST_TIME = 0.0
 save_dir = "/kaggle/working/result"
 os.makedirs(save_dir, exist_ok=True)
-# ========== OUTPUT PATH ==========
 RESULT_DIR = f"/kaggle/working/results_{datasets}"
 os.makedirs(RESULT_DIR, exist_ok=True)
 
@@ -85,7 +79,6 @@ if not os.path.exists(RESULT_CSV):
             "r_acc"
         ])
 
-# ================= SEQUENCE BUILDER =================
 def make_sequences(X, y, seq_len):
     Xs, ys = [], []
     for i in range(len(y) - seq_len):
@@ -93,7 +86,6 @@ def make_sequences(X, y, seq_len):
         ys.append(y[i + seq_len])
     return np.array(Xs), np.array(ys)
 
-# ================= TGCN MODEL =================
 class TGCN(Model):
     def __init__(self, units, adj):
         super().__init__()
@@ -102,20 +94,18 @@ class TGCN(Model):
         self.out = Dense(1)
 
     def call(self, x):
-        # x: (batch, seq_len, N)
-        x = tf.einsum("ij,btk->bti", self.adj, x)  # Graph convolution
+        x = tf.einsum("ij,btk->bti", self.adj, x)
         x = self.gru(x)
         return self.out(x)
 
-# ================= TRAIN MODEL =================
 def trainmodel_tgcn(prices_all, target_index):
     prices_target = prices_all[target_index]
 
     train_rate = 0.8
     split = int(prices_target.shape[0] * train_rate)
 
-    X = prices_all.T             # (T, N)
-    y = prices_target            # (T,)
+    X = prices_all.T            
+    y = prices_target            
 
     X_train, y_train = X[:split], y[:split]
     X_test, y_test = X[split - seq_len:], y[split - seq_len:]
@@ -128,7 +118,6 @@ def trainmodel_tgcn(prices_all, target_index):
     model = TGCN(units=64, adj=adj)
     model.compile(optimizer=Adam(lr), loss="mse")
 
-    # -------- TRAIN --------
     start_train = time.time()
     model.fit(
         X_train,
@@ -139,14 +128,12 @@ def trainmodel_tgcn(prices_all, target_index):
     )
     train_time = time.time() - start_train
 
-    # -------- TEST --------
     start_test = time.time()
     preds = model.predict(X_test, verbose=0).reshape(-1)
     test_time = time.time() - start_test
 
     return preds, train_time, test_time
 
-# ================= MAIN (REGCN STYLE) =================
 def main(data, s_index):
     prices_all = data[:, :, 3].astype(float)
 
@@ -166,7 +153,6 @@ def main(data, s_index):
 
     preds, train_time, test_time = trainmodel_tgcn(prices_all, s_index)
 
-    # -------- ALIGN --------
     min_len = min(len(pre_y_test), len(y_test), len(preds))
     pre_y = pre_y_test[:min_len]
     y_true = y_test[:min_len]
@@ -185,7 +171,6 @@ def main(data, s_index):
     ALL_TREND_TRUE.append(actual_trend)
     ALL_TREND_PRED.append(predicted_trend)
 
-    # -------- METRICS --------
     accuracy = accuracy_score(actual_trend, predicted_trend)
     r2 = r2_score(y_true, y_pred)
     rmse = sqrt(mean_squared_error(y_true, y_pred))
@@ -201,10 +186,7 @@ def main(data, s_index):
     print("rmse:", rmse)
     print("mae:", mae)
     print("re:", re)
-    print("test_time: ", test_time)
-    print("train_time: ", train_time)
-    print("***********************")
-
+    
     with open(RESULT_CSV, "a", newline="", encoding="UTF8") as f:
         csv.writer(f).writerow([
             f"TGCN_{seq_len}",
@@ -220,7 +202,6 @@ def main(data, s_index):
             r_acc
         ])
 
-# ================= RUN =================
 if __name__ == "__main__":
 
     if all_data == 1:
@@ -240,7 +221,6 @@ if __name__ == "__main__":
         print("Aggregated Trend Acc :", accuracy_score(
             ALL_TREND_TRUE_FLAT, ALL_TREND_PRED_FLAT))
         print("==============================\n")
-        # ---- SAVE AGGREGATED METRICS TO CSV ----
         agg_write_data = [
             "TGCN_AGGREGATED",
             "ALL_STOCKS",
@@ -250,8 +230,8 @@ if __name__ == "__main__":
             str(sqrt(mean_squared_error(ALL_Y_TEST_FLAT, ALL_Y_PRED_FLAT))),
             str(mean_absolute_error(ALL_Y_TEST_FLAT, ALL_Y_PRED_FLAT)),
             "-",
-            f"{TOTAL_TRAIN_TIME:.4f}",        # TOTAL train time
-            f"{TOTAL_TEST_TIME:.4f}",           # Test time
+            f"{TOTAL_TRAIN_TIME:.4f}",        
+            f"{TOTAL_TEST_TIME:.4f}",           
             str(r_mse),
             str(r_acc)
         ]
@@ -260,8 +240,6 @@ if __name__ == "__main__":
             writer.writerow(agg_write_data)
 
         print("✔ Aggregated metrics saved to:", RESULT_CSV)
-        print(f"✔ Total Train Time: {TOTAL_TRAIN_TIME:.4f} sec")
-        print(f"✔ Total Test Time : {TOTAL_TEST_TIME:.4f} sec\n")
 
     else:
         main(data, start_index)

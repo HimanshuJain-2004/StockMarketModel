@@ -12,15 +12,14 @@ from scipy.fftpack import hilbert, fft, ifft
 from math import log
 import pandas as pd
 import copy
-# from tensorflow.keras.losses import mean_squared_error
 from math import sqrt
 from sklearn.metrics import mean_squared_error
 datasets = 'DJIA'
 data_addr = 'C:/Users/Gursimranjeet Singh/REGCN/data/data/'+datasets+'.npy'
 
-tau = 0.  # noise-tolerance (no strict fidelity enforcement)
-DC = 0  # no DC part imposed
-init = 1  # initialize omegas uniformly
+tau = 0.  
+DC = 0  
+init = 1  
 tol = 1e-7
 
 def coarse_grid_search(data1):
@@ -120,7 +119,6 @@ class GeneticAlgorithm:
         self.trace = np.zeros((self.MAXGEN, 2))
         self.params = params
         self.x1 = x1
-        # self.i = i
     def initialize(self):
 
         for i in range(0, self.sizepop):
@@ -168,9 +166,6 @@ class GeneticAlgorithm:
             d.writerow(result)
 
     def selectionOperation(self):
-        '''
-        selection operation for Genetic Algorithm
-        '''
         newpop = []
         totalFitness = np.sum(self.fitness)
         accuFitness = np.zeros((self.sizepop, 1))
@@ -196,9 +191,6 @@ class GeneticAlgorithm:
         self.population = newpop
 
     def crossoverOperation(self):
-        '''
-        crossover operation for genetic algorithm
-        '''
         newpop = []
 
         for i in range(0, self.sizepop, 2):
@@ -221,9 +213,6 @@ class GeneticAlgorithm:
         self.population = newpop
 
     def mutationOperation(self):
-        '''
-        mutation operation for genetic algorithm
-        '''
         newpop = []
         for i in range(0, self.sizepop):
             newpop.append(copy.deepcopy(self.population[i]))

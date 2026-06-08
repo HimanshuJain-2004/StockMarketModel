@@ -3,12 +3,10 @@ import csv
 import pandas as pd
 import numpy as np
 import glob,os
-# tensorflow 1.15.0 + python 3.7
 import tensorflow as tf
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.models import Sequential
-# from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, GRUCell, CuDNNLSTM, BatchNormalization, RNN, TimeDistributed
 from tensorflow.keras.layers import Dense, RNN, TimeDistributed
 from input_data import preprocess_data, load_price_data,data_y
 from utils import get_trend, avg_relative_error, get_vague_trend, calculate_laplacian
@@ -54,13 +52,11 @@ TOTAL_TEST_TIME = 0.0
 
 save_dir = "/kaggle/working/result"
 os.makedirs(save_dir, exist_ok=True)
-# ---------- KAGGLE OUTPUT PATH ----------
 RESULT_DIR = f"/kaggle/working/results_{datasets}"
 os.makedirs(RESULT_DIR, exist_ok=True)
 
 RESULT_CSV = os.path.join(RESULT_DIR, "result_CEEMDAN.csv")
 
-# Write CSV header only once
 if not os.path.exists(RESULT_CSV):
     with open(RESULT_CSV, 'w', newline='', encoding='UTF8') as f:
         writer = csv.writer(f)
@@ -80,7 +76,6 @@ if not os.path.exists(RESULT_CSV):
 
 
 def regcn_loss(y_true, y_pred, prev_price):
-    # FORCE dtype consistency (CRITICAL FIX)
     y_true = tf.cast(y_true, tf.float32)
     y_pred = tf.cast(y_pred, tf.float32)
     prev_price = tf.cast(prev_price, tf.float32)
@@ -129,7 +124,7 @@ def main(data, s_index, lr, n_neurons,
     y_test = np.expand_dims(y_test, -1)
     train_start_time = time.time()
     result = trainmodel_ceemdan(
-        tdata,          # raw stock data
+        tdata,          
         s_index,
         lr,
         n_neurons,
@@ -141,22 +136,17 @@ def main(data, s_index, lr, n_neurons,
     train_end_time = time.time()
     train_time = train_end_time - train_start_time
     test_start_time = time.time()
-    result = result[:, 0]   # (N_test,)
+    result = result[:, 0]   
     y_test = y_test[:, -1]
 
-    # -------- ALIGN LENGTHS (CRITICAL FOR AGGREGATION) --------
     min_len = min(len(pre_y_test), len(y_test), len(result))
     pre_y_test_aligned = pre_y_test[:min_len]
     y_test_aligned = y_test[:min_len]
     result_aligned = result[:min_len]
 
-    # -------- COLLECT FOR FINAL AGGREGATED METRICS --------
     ALL_Y_TEST.append(y_test_aligned.flatten())
     ALL_Y_PRED.append(result_aligned.flatten())
 
-    # actual_trend = get_trend(pre_y_test_aligned, y_test_aligned)
-    # predicted_trend = get_trend(pre_y_test_aligned, result_aligned)
-    # Ensure 2D shape for get_trend()
     pre_y_test_2d = pre_y_test_aligned.reshape(-1, 1)
     y_test_2d = y_test_aligned.reshape(-1, 1)
     result_2d = result_aligned.reshape(-1, 1)
@@ -168,14 +158,10 @@ def main(data, s_index, lr, n_neurons,
     ALL_TREND_TRUE.append(actual_trend)
     ALL_TREND_PRED.append(predicted_trend)
 
-
-    # actual_trend = get_trend(pre_y_test, y_test)
-    # predicted_trend = get_trend(pre_y_test, result)
     accuracy = accuracy_score(actual_trend, predicted_trend)
 
     print("***********************")
     print("accuracy: ", accuracy)
-    # print("accuracy: ", accuracy1)
     r2 = r2_score(y_test_aligned, result_aligned)
     print("r2: ", r2)
     rmse = sqrt(mean_squared_error(y_test_aligned, result_aligned))
@@ -192,10 +178,7 @@ def main(data, s_index, lr, n_neurons,
     global TOTAL_TRAIN_TIME, TOTAL_TEST_TIME
     TOTAL_TRAIN_TIME += train_time
     TOTAL_TEST_TIME += test_time
-    print("test_time: ", test_time)
-    print("train_time: ", train_time)
-    print("***********************")
-
+    ##
     write_data = [
         "CEEMDAN_"+str(seq_len),
         str(s_index),
@@ -223,7 +206,6 @@ def main(data, s_index, lr, n_neurons,
         plt.ylabel('Stock Price')
         plt.legend()
 
-        # Save file inside /kaggle/working/result
         save_path = f"{save_dir}/CEEMDAN_{datasets}-{s_index}.png"
         plt.savefig(save_path, dpi=200)
         plt.show()
@@ -237,7 +219,6 @@ if __name__ == '__main__':
                 continue
             main(data,
                  s_index, lr, n_neurons, seq_len, n_epochs)
-        # ---- FINAL AGGREGATED METRICS (PAPER SETTING) ----
         ALL_Y_TEST_FLAT = np.concatenate(ALL_Y_TEST)
         ALL_Y_PRED_FLAT = np.concatenate(ALL_Y_PRED)
         ALL_TREND_TRUE_FLAT = np.concatenate(ALL_TREND_TRUE)
@@ -270,7 +251,6 @@ if __name__ == '__main__':
         print("Aggregated MAE       :", agg_mae)
         print("Aggregated Trend Acc :", agg_trend_acc)
         print("==============================\n")
-        # ---- SAVE AGGREGATED METRICS TO CSV ----
         agg_write_data = [
             "CEEMDAN_AGGREGATED",
             "ALL_STOCKS",
@@ -279,8 +259,8 @@ if __name__ == '__main__':
             str(agg_rmse),
             str(agg_mae),
             "-",
-            f"{TOTAL_TRAIN_TIME:.4f}",        # TOTAL train time
-            f"{TOTAL_TEST_TIME:.4f}",           # Test time
+            f"{TOTAL_TRAIN_TIME:.4f}",      
+            f"{TOTAL_TEST_TIME:.4f}",           
             str(r_mse),
             str(r_acc)
         ]
@@ -289,8 +269,7 @@ if __name__ == '__main__':
             writer.writerow(agg_write_data)
 
         print("✔ Aggregated metrics saved to:", RESULT_CSV)
-        print(f"✔ Total Train Time: {TOTAL_TRAIN_TIME:.4f} sec")
-        print(f"✔ Total Test Time : {TOTAL_TEST_TIME:.4f} sec\n")
+        ##
     else:
         main(data,
              s_index, lr, n_neurons, seq_len, n_epochs)

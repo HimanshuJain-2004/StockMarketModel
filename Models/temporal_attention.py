@@ -5,7 +5,6 @@ class TemporalAttentionBlock(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads=4, dropout=0.2, **kwargs):
         super().__init__(**kwargs)
 
-        # Save init args for serialization
         self.d_model = d_model
         self.num_heads = num_heads
         self.dropout_rate = dropout
@@ -35,10 +34,6 @@ class TemporalAttentionBlock(tf.keras.layers.Layer):
 
         G = self.gate(x2)
         return G * x2 + (1 - G) * x
-
-    # ==================================================
-    #  🔥 SERIALIZATION SUPPORT
-    # ==================================================
     def get_config(self):
         config = super().get_config()
         config.update({
